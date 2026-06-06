@@ -1027,6 +1027,87 @@ var(--popover)             /* popover/dropdown background */
 - **Shadow DOM** (`attachShadow({ mode: 'open' })`): Use for complex widgets/pages where style isolation matters. Requires all CSS inline or in `<style>` tags.
 - **Light DOM** (direct `this.innerHTML`): Use for simple fields that benefit from inheriting admin-next styles. Simpler but can leak styles.
 
+### Direction-aware components (RTL support)
+
+Admin-next runs in both LTR and RTL — the active direction follows the user's `adminLanguage` (Arabic, Hebrew, Persian, Urdu, and anything else `LanguageCodes::isRtl()` flags). Plugin web components should honor it.
+
+#### The contract
+
+```javascript
+window.__GRAV_I18N.dir              // 'ltr' | 'rtl' — read-only snapshot
+window.__GRAV_I18N.subscribe(fn)    // fires when locale (and so direction) changes
+                                    // returns an unsubscribe function
+```
+
+`<html dir>` is also set, so anything participating in normal CSS cascade picks it up for free.
+
+#### Reading direction in a component
+
+```javascript
+class MyField extends HTMLElement {
+    _getDir() {
+        if (window.__GRAV_I18N && window.__GRAV_I18N.dir) {
+            return window.__GRAV_I18N.dir;
+        }
+        return document.documentElement.getAttribute('dir') === 'rtl' ? 'rtl' : 'ltr';
+    }
+
+    connectedCallback() {
+        this._render();
+        // Live-update on language switch — admin-next supports changing
+        // language without a hard reload.
+        if (window.__GRAV_I18N && typeof window.__GRAV_I18N.subscribe === 'function') {
+            this._i18nUnsub = window.__GRAV_I18N.subscribe(() => this._applyDir());
+        }
+    }
+
+    disconnectedCallback() {
+        if (this._i18nUnsub) { try { this._i18nUnsub(); } catch (e) {} }
+    }
+}
+```
+
+#### CSS conventions
+
+Use logical CSS properties throughout — they compile to the right physical side in both directions, so you write one rule instead of two:
+
+| Physical (don't use)        | Logical (use)                |
+|-----------------------------|------------------------------|
+| `padding-left` / `right`    | `padding-inline-start` / `end`|
+| `margin-left` / `right`     | `margin-inline-start` / `end` |
+| `border-left` / `right`     | `border-inline-start` / `end` |
+| `left:` / `right:`          | `inset-inline-start` / `end`  |
+| `text-align: left` / `right`| `text-align: start` / `end`   |
+
+Tailwind v4 ships matching utilities: `ms-*` / `me-*`, `ps-*` / `pe-*`, `border-s` / `border-e`, `text-start` / `text-end`, `start-0` / `end-0`, `rounded-s-*` / `rounded-e-*`. Prefer these over the `rtl:` variant where possible — one rule per side beats two.
+
+#### When physical + `rtl:` is the right tool
+
+Some properties have no logical equivalent:
+- CSS transforms (`-translate-x-full` etc.) — pair with `rtl:translate-x-full`.
+- `@keyframes` blocks — variants don't reach inside; duplicate the keyframe with a `[dir="rtl"]` parent selector and a mirrored translateX sign.
+
+Watch for specificity surprises: `[dir="rtl"]` attribute selector (0,1,0) outranks media-query rules (0,0,0). If you pair `rtl:` with a breakpoint, scope the RTL rule with `max-lg:` (or similar) so the responsive rule wins at the right breakpoint.
+
+#### Code editors stay LTR
+
+If your component embeds a code/source-style editor (CodeMirror, Monaco, etc.), pin its container `dir="ltr"` regardless of the admin direction. Source code, markdown, YAML, and JSON are always left-to-right.
+
+#### Directional icons
+
+Lucide/heroicon chevrons and arrows don't auto-flip. Either:
+- Pick the right icon at render time based on `_getDir()`, or
+- Apply the `.flip-rtl` utility class (admin-next ships this — applies `transform: scaleX(-1)` in RTL only). Use sparingly; explicit icon swaps read better.
+
+Don't flip vertical chevrons (`chevron-up` / `chevron-down`) — they never change direction.
+
+#### Reference implementation
+
+`grav-plugin-editor-pro`'s TipTap field is the canonical example:
+- `getEditorDir()` helper (`admin/assets/editor-pro.js`) — reads `__GRAV_I18N.dir`, falls back to `<html dir>`.
+- `editorProps.attributes.dir` plumbs it into the ProseMirror DOM at editor creation.
+- An `_i18nUnsub` subscription in `onCreate` re-applies `dir` live; the matching teardown sits in `onDestroy`.
+
 ---
 
 ## File Structure Convention
@@ -1057,6 +1138,56 @@ my-plugin/
 ```
 
 ---
+
+## Detecting admin context: never gate event subscription on `isAdmin()` in `onPluginsInitialized`
+
+In Grav 2.0, admin-next saves go through the **API plugin**, not admin-classic. The API plugin only registers `$grav['admin']` (a lightweight `AdminProxy`) **during request dispatch** (`onRequestHandlerInit` → `ApiRouter`), which runs *after* `onPluginsInitialized` has finished. As a result, `$this->isAdmin()` (i.e. `Utils::isAdminPlugin()` / `isset($grav['admin'])`) is **`false` at `onPluginsInitialized` time on the API path**, even though the request is an admin-scoped write.
+
+This breaks the common Grav 1.x pattern of gating event subscription on `isAdmin()`:
+
+```php
+// ❌ WRONG — silently no-ops under admin-next / API saves.
+// On the API path $grav['admin'] isn't registered yet at this point, so the
+// admin/Flex write hooks below are NEVER subscribed and your index/cache/etc.
+// never updates when content is saved through admin-next.
+public function onPluginsInitialized(): void
+{
+    if ($this->isAdmin()) {
+        $this->enable([
+            'onAdminAfterSave'        => ['onObjectSave', 0],
+            'onFlexObjectAfterSave'   => ['onObjectSave', 0],
+        ]);
+    }
+}
+```
+
+**Right way — subscribe write events unconditionally (config-gated only):**
+
+```php
+// ✅ CORRECT — these events only FIRE during admin/API write operations, so
+// subscribing on the frontend too is harmless. Gate on config, not isAdmin().
+public function onPluginsInitialized(): void
+{
+    if ($this->config->get('plugins.my-plugin.enable_index_events', true)) {
+        $this->enable([
+            'onAdminAfterSave'        => ['onObjectSave', 0],
+            'onAdminAfterDelete'      => ['onObjectDelete', 0],
+            'onAdminAfterSaveAs'      => ['onObjectMove', 0],   // move/rename
+            'onFlexObjectAfterSave'   => ['onObjectSave', 0],
+            'onFlexObjectAfterDelete' => ['onObjectDelete', 0],
+        ]);
+    }
+
+    // isAdmin()-gated blocks are fine ONLY for admin-classic-specific UI
+    // (admin menu, classic Twig templates, admin-classic routes) — never for
+    // data-write hooks that must also fire for admin-next/API saves.
+}
+```
+
+Notes:
+- `isAdmin()` is still reliable **inside a handler that runs during request dispatch** (by then the proxy is registered) and for genuinely admin-classic-only UI. The pitfall is specifically gating subscription at `onPluginsInitialized` time.
+- Note the Grav 2.0 event names: Flex fires the `*After*` variants (`onFlexObjectAfterSave` / `onFlexObjectAfterDelete`), not bare `onFlexObjectSave` / `onFlexObjectDelete`.
+- Plugins must be re-released with `compatibility: '2.0'` to install on Grav 2.0 anyway — that re-release is the moment to convert any `isAdmin()`-at-init gating to the pattern above.
 
 ## Event Subscription Summary
 
@@ -1098,6 +1229,7 @@ public static function getSubscribedEvents(): array
 8. **Static before parameterized**: In route registration, define static routes (e.g., `/items`) before parameterized routes (e.g., `/items/{id}`) due to FastRoute's matching order.
 9. **Config integration is not automatic**: The framework does NOT pass plugin config to web components. If the plugin has admin-relevant config in its blueprints.yaml, you MUST follow Section K to expose it via a `/config` endpoint and fetch it from components. Missing this step leaves user preferences (default modes, feature toggles, display settings) unhonored in admin-next.
 10. **One web component per plugin slug**: The framework maps `grav-{slug}--{kind}` tags one-to-one with a single JS file per kind (`admin-next/widgets/{slug}.js`, `admin-next/panels/{slug}.js`, etc.). If a plugin registers multiple panels/widgets of the same kind, they all share one web component — implement internal view switching rather than expecting multiple tags.
+11. **Never gate event subscription on `isAdmin()` in `onPluginsInitialized`**: On the admin-next/API path `$grav['admin']` is registered during request dispatch, *after* `onPluginsInitialized`, so `isAdmin()` is `false` there and any write hooks (`onAdminAfterSave`, `onFlexObjectAfterSave`, etc.) you subscribe inside an `isAdmin()` block silently never fire for admin-next saves. Subscribe those events unconditionally (config-gated) — see "Detecting admin context" above.
 
 ## Testing
 
