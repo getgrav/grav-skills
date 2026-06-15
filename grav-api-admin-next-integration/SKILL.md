@@ -181,10 +181,37 @@ public function onApiSidebarItems(Event $event): void
         'icon'     => 'fa-puzzle-piece',    // Font Awesome icon (with fa- prefix)
         'route'    => '/plugin/my-plugin',  // admin-next route
         'priority' => 5,                    // sort order (higher = earlier)
-        // 'badge'  => '3',                 // optional badge text
+        // 'badge'         => '3',          // optional STATIC badge text/count
+        // 'badgeEndpoint' => '/my-plugin/badge', // optional DYNAMIC badge: returns { count: N }
+        // 'authorize'     => 'api.system.read',  // optional perm gate (string or any-of array), stripped before reaching client
     ];
     $event['items'] = $items;
 }
+```
+
+### Dynamic sidebar badges
+
+`badge` is static — it only changes on a full sidebar reload. For a count that
+refreshes on its own, add `badgeEndpoint` (same mechanism context panels use).
+The endpoint returns `{ count: N }`:
+
+```php
+// Route: GET /my-plugin/badge (register in onApiRegisterRoutes)
+public function badge(ServerRequestInterface $request): ResponseInterface
+{
+    return ApiResponse::create(['count' => $this->pendingCount()]);
+}
+```
+
+Admin-next fetches it when the sidebar loads and re-fetches on
+content/config/plugin/theme invalidations; the live count overrides the static
+`badge`. A web component (plugin page, widget) can also push an immediate update
+without a round-trip:
+
+```javascript
+window.dispatchEvent(new CustomEvent('grav:sidebar:badge', {
+    detail: { id: 'my-plugin', count: 42 },   // id = the sidebar item id
+}));
 ```
 
 ---
