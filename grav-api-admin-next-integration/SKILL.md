@@ -417,6 +417,50 @@ $event['definition'] = [
 
 Component web component goes in `admin-next/pages/my-plugin.js`, tag name `grav-{slug}--page`, receives `window.__GRAV_PAGE_TAG`.
 
+#### Toolbar communication: `page-action` / `page-state`
+
+A component-mode page has no blueprint form, so admin-next can't track its dirty state. The component and the header toolbar (the `actions` array) talk through two DOM events on the component's own element:
+
+- **`page-action`** (toolbar → component): admin-next dispatches this when a toolbar action your component owns is clicked — any action with no `endpoint`, **including the `primary` action**. `detail = { id, label }`.
+- **`page-state`** (component → toolbar): your component dispatches this to report `{ dirty, valid, busy }` (all optional, merged on each dispatch). It drives the `primary` button:
+    - `dirty` — the `primary` button stays **disabled until the component reports `dirty: true`** at least once.
+    - `valid` — set `false` to keep `primary` disabled while input is invalid.
+    - `busy` — set `true` to show a spinner on `primary` while saving.
+
+```javascript
+class MyPluginPage extends HTMLElement {
+    connectedCallback() {
+        this.attachShadow({ mode: 'open' });
+        // Run our save when the primary (or any endpoint-less) action fires
+        this.addEventListener('page-action', (e) => {
+            if (e.detail?.id === 'save') this._save();
+        });
+        this._render();
+    }
+
+    _onChange() {
+        // Enable the primary Save button
+        this.dispatchEvent(new CustomEvent('page-state', { detail: { dirty: true } }));
+    }
+
+    async _save() {
+        this.dispatchEvent(new CustomEvent('page-state', { detail: { busy: true } }));
+        try {
+            await this._persist();
+            window.__GRAV_TOAST?.success('Saved');
+            this.dispatchEvent(new CustomEvent('page-state', { detail: { dirty: false, busy: false } }));
+        } catch (err) {
+            window.__GRAV_TOAST?.error('Save failed');
+            this.dispatchEvent(new CustomEvent('page-state', { detail: { busy: false } }));
+        }
+    }
+}
+```
+
+A `primary: true` action on a component page is **always disabled** until the component emits `page-state` with `dirty: true` — a component that never dispatches `page-state` can't use the primary button (define a non-primary action instead, which is always enabled and also fires `page-action`).
+
+For non-blocking feedback use `window.__GRAV_TOAST.{success,error,info,warning}(msg, opts)` (`opts` is forwarded to the toaster, e.g. `{ duration: 6000 }`).
+
 **Never** use native `confirm()`/`alert()`/`prompt()` in component-mode pages — use `window.__GRAV_DIALOGS.confirm()` instead. See Section F → "UI Dialogs" for the API.
 
 ### Filesystem Discovery (alternative to event)
