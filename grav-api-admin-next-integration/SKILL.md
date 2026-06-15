@@ -501,6 +501,8 @@ Place files directly without implementing the event:
 
 Custom form fields auto-discovered by the API when plugin details are fetched. Each `.js` file in `admin-next/fields/` becomes a field type (filename = type name).
 
+> **Themes provide custom fields the same way** — put the file at `your-theme/admin-next/fields/{type}.js`. The API reports each field type's provider *kind* (`plugins` vs `themes`) so admin-next fetches the script from the right `/gpm/{kind}/{slug}/field/{type}` route. No blueprint difference; a theme-provided type works in any blueprint. (Requires grav-plugin-api ≥ 1.0.0-rc.15 / admin2 ≥ 2.0.0-rc.15 — older builds always used the `plugins` route and 404'd on theme fields.)
+
 ### Blueprint Usage
 In a blueprint YAML, reference the custom field type:
 ```yaml
