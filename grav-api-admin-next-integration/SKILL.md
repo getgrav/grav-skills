@@ -431,6 +431,42 @@ public function onApiPluginPageInfo(Event $event): void
 }
 ```
 
+### Customizing the save toast (blueprint mode)
+
+After a blueprint-mode save, Admin Next shows a generic "saved" toast. The
+`save_endpoint` can override it by returning a `toast` hint in its response — no
+client code required.
+
+**Success** — return the hint in the `ApiResponse` body (top-level `toast`
+object, or a bare `message` string):
+```php
+public function save(ServerRequestInterface $request): ResponseInterface
+{
+    // ... persist the data ...
+    return ApiResponse::create([
+        'toast' => [
+            'message'  => 'Settings saved — re-indexing in the background.',
+            'type'     => 'success',   // success | error | info | warning
+            'duration' => 8000,        // ms; 0 (or dismissible:true) = until closed
+        ],
+    ]);
+}
+```
+A save endpoint that returns no `toast`/`message` key keeps the default toast,
+so existing endpoints are unaffected.
+
+**Error** — pass the hint as the 5th argument to `ErrorResponse::create()`. The
+`detail` string is still used as the message when no hint `message` is given,
+so a longer-lived error toast is just:
+```php
+return ErrorResponse::create(422, 'Validation failed', $detail, [], [
+    'duration'    => 0,      // stays until the user dismisses it
+    'dismissible' => true,
+]);
+```
+
+Same hint shape works anywhere a toast is shown from a server response.
+
 ### Component Mode Handler
 ```php
 $event['definition'] = [

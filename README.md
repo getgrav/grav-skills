@@ -17,8 +17,9 @@ The skills include the canonical patterns, blueprint snippets, and reference poi
 | **`grav-api-integration`** | Your plugin only needs to extend or consume the Grav API. No custom admin UI. Lightweight, narrow-scope. |
 | **`grav-api-admin-next-integration`** | Your plugin has (or needs) custom Admin Next UI: custom form fields, dedicated admin pages, panels, menu bar items, sidebar nav. Includes everything the API skill covers, plus the Admin Next side. |
 | **`grav-translations`** | You're editing a plugin's `languages/<lang>.yaml`, adding blueprint fields with `label:` / `help:` / `title:`, debugging humanized labels in admin2 (e.g. "Xss Security" instead of "XSS Security for Content"), or porting a Grav 1.7 lang file to Grav 2.0's ICU convention. Pairs with either of the integration skills. |
+| **`grav-plugin-review`** | You're reviewing, vetting, or auditing a third-party Grav 2.0 / Admin2 plugin (e.g. a GPM `[add-resource]` submission) for compatibility and security. Encodes the review method, the verified API/Admin2 integration contract to check against, and a findings taxonomy (manifest correctness, auth, secret handling, injection, XSS, path traversal, uploads, SSE scaling, CSRF, spoofing) with concrete fixes. |
 
-Most plugin developers will want `grav-api-admin-next-integration`. Reach for the narrower `grav-api-integration` only when you're sure no admin UI work is needed. Pull in `grav-translations` whenever blueprint or admin labels are involved.
+Most plugin developers will want `grav-api-admin-next-integration`. Reach for the narrower `grav-api-integration` only when you're sure no admin UI work is needed. Pull in `grav-translations` whenever blueprint or admin labels are involved. Reach for `grav-plugin-review` when you're on the receiving end: vetting someone else's plugin rather than building your own.
 
 ## Install
 
