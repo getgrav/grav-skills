@@ -1,7 +1,7 @@
 ---
 name: grav-api-admin-next-integration
 description: >-
-  Use when integrating a Grav 2.0 plugin with Admin Next (the new SvelteKit SPA admin) and the API plugin. Covers all integration points: API endpoints (`onApiRegisterRoutes`), sidebar items, menubar/toolbar buttons, floating widgets, plugin pages (blueprint and component modes), custom field types, custom reports, blueprint modifications, permissions, languages, and config exposure to web components. Trigger when migrating an admin-classic plugin to Admin Next, when adding any Admin Next UI to a plugin, when working under `user/plugins/<plugin>/admin-next/` or on event handlers prefixed `onApi*`, or when the user mentions admin-next, custom field type, sidebar nav, floating widget, plugin page, custom report, or any of the `onApi*` events. Use the lighter `grav-api-integration` skill instead if the plugin only needs API endpoints with no admin UI.
+  Use when integrating a Grav 2.0 plugin with Admin Next (the new SvelteKit SPA admin) and the API plugin. Covers all integration points: API endpoints (`onApiRegisterRoutes`), sidebar items, menubar/toolbar buttons, floating widgets, modal dialogs (`window.__GRAV_DIALOGS.form()`/`.open()` and the page-creation deep link), plugin pages (blueprint and component modes), custom field types, custom reports, blueprint modifications, permissions, languages, and config exposure to web components. Trigger when migrating an admin-classic plugin to Admin Next, when adding any Admin Next UI to a plugin, when working under `user/plugins/<plugin>/admin-next/` or on event handlers prefixed `onApi*`, or when the user mentions admin-next, custom field type, sidebar nav, floating widget, modal dialog, plugin page, custom report, or any of the `onApi*` events. Use the lighter `grav-api-integration` skill instead if the plugin only needs API endpoints with no admin UI.
 ---
 
 # Grav Plugin Admin-Next & API Integration
@@ -26,7 +26,8 @@ Read the plugin's main PHP file, `getSubscribedEvents()`, classes, blueprints, t
 | Admin templates/pages with forms | `onApiPluginPageInfo` (blueprint mode) — Section E |
 | Admin pages with custom JS UI | `onApiPluginPageInfo` (component mode) — Section E |
 | Custom Twig field types | `admin-next/fields/` web components — Section F |
-| Floating panels / modals | `onApiFloatingWidgets` — Section D |
+| Floating panels (persistent FAB) | `onApiFloatingWidgets` — Section D |
+| Modal dialogs / "custom page creation modal" recipe | `window.__GRAV_DIALOGS.form()` / `.open()` + menubar `modal`/`route` intent — Section L |
 | Context-aware side panels (page revisions, etc.) | `onApiContextPanels` — panel web components in `admin-next/panels/` |
 | Blueprint manipulation / field injection | `onApiBlueprintResolved` — Section H |
 | Data CRUD operations | `onApiRegisterRoutes` — Section A |
@@ -248,6 +249,44 @@ public function onApiMenubarItems(Event $event): void
     $event['items'] = $items;
 }
 ```
+
+### Client-side intents: `route` and `modal` (alternative to a server action)
+
+A menubar item can carry a **client-side intent** that runs in admin-next
+instead of POSTing to the action handler. When `route` or `modal` is present it
+takes precedence over `action` — no `onApiMenubarAction` round-trip happens.
+
+```php
+// Navigate the SPA — e.g. deep-link the native new-page form with a preset
+// parent + locked template (the admin-next replacement for the classic
+// "custom page creation modal" cookbook recipe). See Section L.
+$items[] = [
+    'id'     => 'new-article',
+    'plugin' => 'my-plugin',
+    'label'  => 'New Article',
+    'icon'   => 'fa-plus',
+    'route'  => '/pages/new?parent=/blog&template=item&title=New%20Article',
+];
+
+// Open one of the plugin's own modal web components (admin-next/modals/{id}.js).
+$items[] = [
+    'id'     => 'quick-thing',
+    'plugin' => 'my-plugin',
+    'label'  => 'Quick Thing',
+    'icon'   => 'fa-bolt',
+    'modal'  => [
+        'component'         => 'quick-thing',  // → admin-next/modals/quick-thing.js
+        'title'             => 'Quick Thing',  // optional (defaults to label)
+        'size'              => 'lg',           // sm | md | lg | xl
+        // 'props'           => [...],         // set as properties on the element
+        // 'useStandardHeader' => false,       // component provides its own header
+    ],
+];
+```
+
+`confirm` still works alongside an intent — the confirm runs first, then the
+route/modal. Both fields pass straight through the API (no allowlist), so any
+plugin can use them.
 
 ### Action Handler
 ```php
@@ -1075,6 +1114,115 @@ In admin-next, replace this with the `/config` endpoint pattern. Every `window.M
 
 ---
 
+## Section L: Plugin Modals (`window.__GRAV_DIALOGS`)
+
+Admin-next exposes a modal API to plugin web components and (via the `modal`
+intent) to menubar items. Use it for the classic "custom page creation modal"
+recipe and any other blocking, result-returning dialog. Only one modal shows at
+a time; calls made while one is open queue and run in turn.
+
+> Requires grav-plugin-api ≥ 1.0.0-rc.16 / admin2 ≥ 2.0.0-rc.16. Older builds
+> only have `window.__GRAV_DIALOGS.confirm()` (boolean). For just a yes/no
+> prompt keep using `confirm()` — see Section F → "UI Dialogs".
+
+### Option 1 — `form()`: inline-field form, no JS component
+
+The fastest path. Define fields in JS; the modal renders a native-looking form
+and resolves the entered values (or `null` if dismissed). No web component, no
+endpoint.
+
+```javascript
+const values = await window.__GRAV_DIALOGS.form({
+    title: 'New Article',
+    description: 'Optional helper text shown above the fields.',
+    fields: [
+        { name: 'title',   label: 'Title', required: true, placeholder: 'My title' },
+        { name: 'summary', label: 'Summary', type: 'textarea' },
+        { name: 'section', label: 'Section', type: 'select',
+          value: 'news',
+          options: [{ value: 'news', label: 'News' }, { value: 'blog', label: 'Blog' }] },
+        { name: 'pinned',  label: 'Pinned', type: 'toggle' },  // text | textarea | select | toggle | number
+    ],
+    submitLabel: 'Create',          // optional
+    size: 'md',                     // sm | md | lg | xl
+});
+if (values) {
+    // values = { title, summary, section, pinned } keyed by field name
+    // e.g. POST /pages to create the page
+}
+```
+
+Required fields gate the submit button. `null` means the user cancelled
+(Escape, backdrop, or Cancel).
+
+### Option 2 — `open()`: your own modal web component
+
+For richer UI, ship a web component at `admin-next/modals/{id}.js` and open it:
+
+```javascript
+const result = await window.__GRAV_DIALOGS.open({
+    plugin: 'my-plugin',
+    component: 'my-modal',          // → admin-next/modals/my-modal.js
+    title: 'My Modal',
+    props: { route: '/blog' },      // set as properties on the element
+    size: 'lg',                     // sm | md | lg | xl
+    // useStandardHeader: false,    // component provides its own header/close
+});
+// result = whatever the component reported, or null on cancel/close
+```
+
+The component is mounted as `grav-{plugin}--modal-{id}` (tag injected as
+`window.__GRAV_MODAL_TAG`), served by the API from `/gpm/plugins/{slug}/modal-script/{id}`.
+It resolves the modal by dispatching events on itself — the same idiom as the
+floating-widget `close` event:
+
+```javascript
+// admin-next/modals/my-modal.js
+const TAG = window.__GRAV_MODAL_TAG;
+
+class MyModal extends HTMLElement {
+    set route(v) { this._route = v; }   // receives props set by open()
+    connectedCallback() { this._render(); }
+
+    _submit() {
+        // Hand a result back to the awaiting open() call:
+        this.dispatchEvent(new CustomEvent('resolve', { detail: { created: true, id: 42 } }));
+    }
+    _cancel() {
+        // `cancel` or `close` both resolve the open() promise with null:
+        this.dispatchEvent(new CustomEvent('cancel'));
+    }
+    _render() {
+        // API globals + dialogs/toast are available exactly as in other
+        // component types (see "Web Component Common Patterns").
+        this.innerHTML = `...`;
+    }
+}
+customElements.define(TAG, MyModal);
+```
+
+### Option 3 — the native page-creation form, deep-linked
+
+For "create a page of type X under Y" the lightest answer is no modal at all:
+deep-link admin-next's own new-page form. It reads three optional query params:
+
+- `?parent=/blog` — preselects the parent page
+- `?template=item` — preselects **and locks** the template picker
+- `?title=My%20Post` — prefills the title (and seeds the slug)
+
+Trigger it from a menubar item's `route` intent (Section C) or from any
+component with `window.__GRAV_NAVIGATE('/pages/new?parent=/blog&template=item')`.
+This reuses the native slug/validation/language handling for free and is the
+closest equivalent to the classic "custom page creation modal" cookbook recipe.
+
+### Choosing
+
+- Just need a couple of inputs → **`form()`**.
+- Need custom layout, live data, multi-step → **`open()`** with a component.
+- Creating a Grav page with a fixed template/parent → **deep-link `/pages/new`**.
+
+---
+
 ## Web Component Common Patterns
 
 ### Injected Globals (available in all component types)
@@ -1090,6 +1238,7 @@ window.__GRAV_FIELD_TAG    // Custom fields: "grav-{plugin}--{fieldType}"
 window.__GRAV_WIDGET_TAG   // Floating widgets: "grav-{plugin}--widget"
 window.__GRAV_PAGE_TAG     // Plugin pages: "grav-{plugin}--page"
 window.__GRAV_REPORT_TAG   // Reports: "grav-{plugin}--{reportName}"
+window.__GRAV_MODAL_TAG    // Modals: "grav-{plugin}--modal-{id}" (Section L)
 ```
 
 ### API Helper Pattern (reuse across all component types)
@@ -1232,6 +1381,8 @@ my-plugin/
 │   │   └── my-plugin.js            # Floating widget (Section D)
 │   ├── pages/
 │   │   └── my-plugin.js            # Plugin page component (Section E)
+│   ├── modals/
+│   │   └── my-modal.js             # Modal component (Section L)
 │   └── reports/
 │       └── my-plugin-report.js     # Report component (Section G)
 ├── classes/
