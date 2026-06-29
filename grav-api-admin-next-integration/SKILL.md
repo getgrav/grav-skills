@@ -22,6 +22,7 @@ Read the plugin's main PHP file, `getSubscribedEvents()`, classes, blueprints, t
 |---|---|
 | `onAdminMenu` / admin sidebar entries | `onApiSidebarItems` — Section B |
 | Quick-tray buttons / toolbar actions | `onApiMenubarItems` + `onApiMenubarAction` — Section C |
+| Editor `addButton` (markdown editor toolbar) | `onApiMarkdownEditorButtons` — Section M |
 | `onAdminGenerateReports` | `onApiGenerateReports` — Section G |
 | Admin templates/pages with forms | `onApiPluginPageInfo` (blueprint mode) — Section E |
 | Admin pages with custom JS UI | `onApiPluginPageInfo` (component mode) — Section E |
@@ -245,9 +246,40 @@ public function onApiMenubarItems(Event $event): void
         'icon'    => 'fa-bolt',             // Font Awesome icon
         'action'  => 'run',                 // action key (passed to action handler)
         'confirm' => 'Run this action?',    // optional confirmation dialog text
+        // 'variant'   => 'primary',        // optional emphasis: default|primary|success|warning|danger
+        // 'showLabel' => true,             // optional — render the label beside the icon
+        // 'size'      => 'md',             // optional — sm (default) | md
+        // 'placement' => 'start',          // optional — start (default) | end (see below)
+        // 'priority'  => 5,                // optional — order within the zone (higher = earlier)
     ];
     $event['items'] = $items;
 }
+```
+
+### Placement zones and ordering (`placement` + `priority`)
+
+The header has two plugin zones (admin2#81). `placement: 'start'` (the
+**default**) puts the button in the open space on the left of the header, well
+clear of the destructive Clear Cache action — use it for everyday plugin
+actions. `placement: 'end'` places the button beside the core action cluster
+(View site / Clear Cache), behind a divider, for buttons that genuinely belong
+with system maintenance. The core actions themselves are never plugin-movable.
+
+`priority` orders buttons within a zone — higher renders earlier (further
+left); ties keep plugin registration order (same semantics as the sidebar's
+`priority`). Both fields pass straight through the API (no allowlist) and apply
+to action buttons, `route`/`modal` intents, and `href` links alike.
+
+```php
+$items[] = [
+    'id'        => 'new-article',
+    'plugin'    => 'my-plugin',
+    'label'     => 'New Article',
+    'icon'      => 'fa-plus',
+    'route'     => '/pages/new?parent=/blog&template=item',
+    'placement' => 'start',   // far-left zone, away from Clear Cache
+    'priority'  => 10,        // sits ahead of lower-priority start-zone buttons
+];
 ```
 
 ### Client-side intents: `route` and `modal` (alternative to a server action)
@@ -578,6 +610,16 @@ Place files directly without implementing the event:
 Custom form fields auto-discovered by the API when plugin details are fetched. Each `.js` file in `admin-next/fields/` becomes a field type (filename = type name).
 
 > **Themes provide custom fields the same way** — put the file at `your-theme/admin-next/fields/{type}.js`. The API reports each field type's provider *kind* (`plugins` vs `themes`) so admin-next fetches the script from the right `/gpm/{kind}/{slug}/field/{type}` route. No blueprint difference; a theme-provided type works in any blueprint. (Requires grav-plugin-api ≥ 1.0.0-rc.15 / admin2 ≥ 2.0.0-rc.15 — older builds always used the `plugins` route and 404'd on theme fields.)
+
+### How field scripts are loaded (bundling + caching — know this)
+Admin-next does **not** fetch one request per field type. It pulls **all** of a plugin's field scripts in a single call — `GET /gpm/{kind}/{slug}/fields` returns a JSON map `{ fieldType: "<source>", … }` (every `.js` in `admin-next/fields/`) — then evaluates each field's source locally with its own `window.__GRAV_FIELD_TAG`. So a plugin shipping seven fields = one round-trip, not seven. The per-field route (`…/field/{type}`) still exists for classic admin and as a fallback.
+
+Consequences when authoring fields:
+- **Each `.js` MUST be self-contained.** The bundle's entries are eval'd separately, each in its own scope — never share top-level vars between two field files or `import` one from another. Inline shared logic at build time, or duplicate it. (This is why every field opens with `const TAG = window.__GRAV_FIELD_TAG;` and ends with `customElements.define(TAG, …)`.)
+- **Cached hard, revalidated cheap.** Responses carry a mtime/size `ETag`; admin-next caches bodies in `localStorage` and revalidates with `If-None-Match` (→ `304`). A field is downloaded once per release, but a rebuild during dev invalidates instantly. Don't add cache-busting query params.
+- **Free of rate-limit / burst concerns.** These `/field`, `/fields`, `/widget-script` routes are excluded from the API rate limiter (static assets), and the client caps parallel requests — so a fleet of fields won't 429 or exhaust PHP-FPM.
+
+This "discover-on-disk → one conditionally-cached bundle → fan out on the client" shape is the recommended pattern for any grouped admin-next assets a plugin serves (e.g. fold several per-plugin config GETs into one bootstrap endpoint rather than firing them separately).
 
 ### Blueprint Usage
 In a blueprint YAML, reference the custom field type:
@@ -1223,6 +1265,89 @@ closest equivalent to the classic "custom page creation modal" cookbook recipe.
 
 ---
 
+## Section M: Markdown Editor Toolbar Buttons (`onApiMarkdownEditorButtons`)
+
+Add a button to the admin-next **default** (CodeMirror) markdown editor toolbar
+— the editor used when a user's content editor is *not* Editor Pro. This is the
+admin-next equivalent of the classic admin's editor `addButton`, and the
+counterpart to Editor Pro's own `registerEditorProPlugin` toolbar (which only
+affects the Editor Pro editor). Use this when a plugin needs an insert
+affordance that works regardless of which editor the user picked.
+
+> Requires grav-plugin-api / admin2 builds that ship the markdown editor
+> toolbar-button hook (the `/editor/toolbar-buttons` endpoint +
+> `MarkdownEditor.svelte` rendering). Older builds simply won't show the button.
+
+### Event Subscription
+```php
+'onApiMarkdownEditorButtons' => ['onApiMarkdownEditorButtons', 0],
+```
+
+### Handler
+```php
+public function onApiMarkdownEditorButtons(Event $event): void
+{
+    // Gate on config the same way other registrations do (Section K Step 2).
+    if (!$this->config->get('plugins.my-plugin.enable_editor_button', true)) {
+        return;
+    }
+
+    $buttons = $event['buttons'];
+    $buttons[] = [
+        'id'     => 'my-thing',
+        'plugin' => 'my-plugin',
+        'label'  => 'Insert My Thing',          // tooltip / aria-label
+        'icon'   => '<svg ...>...</svg>',        // inline SVG (preferred, matches the Lucide toolbar) or an FA class
+        // Option 1 — open a plugin modal that builds + returns the markdown:
+        'modal'  => [
+            'component' => 'my-insert',          // → admin-next/modals/my-insert.js
+            'title'     => 'Insert My Thing',
+            'size'      => 'md',                  // sm | md | lg | xl
+        ],
+        // Option 2 — insert a fixed string directly (no modal): use INSTEAD of `modal`.
+        // 'insert' => ['content' => '---'],
+        // 'authorize' => 'api.pages.write',      // optional perm gate (string or any-of array)
+    ];
+    $event['buttons'] = $buttons;
+}
+```
+
+`authorize` follows the same string-or-array semantics as the sidebar/menubar
+APIs and is stripped before reaching the client.
+
+### The modal contract (key difference from menubar modals)
+
+A menubar `modal` runs its own side effects. An **editor** button modal instead
+**resolves the markdown to insert**, and admin-next drops it into the *specific*
+editor whose toolbar was clicked (at the cursor) — not via the global
+`grav:editor:insert-content` event, which every mounted markdown editor would
+react to. Resolve an object with an `insertContent` string:
+
+```javascript
+// admin-next/modals/my-insert.js
+const TAG = window.__GRAV_MODAL_TAG;
+class MyInsertModal extends HTMLElement {
+    connectedCallback() { this._render(); }
+    _insert(markdown) {
+        // admin-next inserts this at the cursor of the editor that opened it.
+        this.dispatchEvent(new CustomEvent('resolve', { detail: { insertContent: markdown } }));
+    }
+    _cancel() { this.dispatchEvent(new CustomEvent('cancel')); }
+    _render() { /* API globals + dialogs/toast available as in other components */ }
+}
+customElements.define(TAG, MyInsertModal);
+```
+
+Render the form immediately (with safe defaults) and re-render after any config
+fetch resolves, rather than showing a loading placeholder — the modal animates
+in, so a placeholder reads as a broken empty modal during the entrance.
+
+The button shows on **every** default markdown editor instance (page content
+and any markdown blueprint field). Gate registration on config if that's too
+broad for your plugin.
+
+---
+
 ## Web Component Common Patterns
 
 ### Injected Globals (available in all component types)
@@ -1467,6 +1592,7 @@ public static function getSubscribedEvents(): array
         'onApiSidebarItems'       => ['onApiSidebarItems', 0],
         'onApiMenubarItems'       => ['onApiMenubarItems', 0],
         'onApiMenubarAction'      => ['onApiMenubarAction', 0],
+        'onApiMarkdownEditorButtons' => ['onApiMarkdownEditorButtons', 0],
         'onApiFloatingWidgets'    => ['onApiFloatingWidgets', 0],
         'onApiPluginPageInfo'     => ['onApiPluginPageInfo', 0],
         'onApiGenerateReports'    => ['onApiGenerateReports', 0],

@@ -1,6 +1,6 @@
 ---
 name: grav-release
-description: Use when cutting a release of a Grav plugin (Team Grav / Trilby Media, e.g. `grav-plugin-*`) or Grav core itself. Covers the two release shapes — full git-flow when the work is on `develop`, and tag-only when the work is on a dedicated release branch (like flex-objects `1.4.0` or grav `2.0`) — plus the prerelease decision (`testing: true` in blueprints, or an `-rc.`/`-beta.` version, or Grav core's `system/defines.php`), the bare-numeric tag/title rule (never `v`-prefixed), sourcing release notes from the top CHANGELOG block, and post-release verification. Trigger when the user says "release <plugin>", "cut a release", "tag and release", "get <plugin> out", "do a prerelease", or asks to run a git-flow release / `gh release` for a Grav plugin or Grav core.
+description: Use when cutting a release of a Grav plugin (Team Grav / Trilby Media, e.g. `grav-plugin-*`) or Grav core itself. Covers the two release shapes — full git-flow when the work is on `develop`, and tag-only when the work is on a dedicated release branch (like flex-objects `1.4.0` or an older Grav maintenance line like `1.7`) — plus the prerelease decision (`testing: true` in blueprints, or an `-rc.`/`-beta.` version, or Grav core's `system/defines.php`), the bare-numeric tag/title rule (never `v`-prefixed), sourcing release notes from the top CHANGELOG block, and post-release verification. Trigger when the user says "release <plugin>", "cut a release", "tag and release", "get <plugin> out", "do a prerelease", or asks to run a git-flow release / `gh release` for a Grav plugin or Grav core.
 ---
 
 # Releasing a Grav plugin (or Grav core)
@@ -46,7 +46,7 @@ Checklist before proceeding:
 ## Decide the shape
 
 - **On `develop`?** → **Path A: git-flow.** (standard stable plugins: tntsearch, etc.)
-- **On a dedicated release branch** (e.g. flex-objects `1.4.0`, grav `2.0`)? → **Path B: tag-only.** No merges.
+- **On a dedicated release branch** (e.g. flex-objects `1.4.0`, an older Grav maintenance line like `1.7`)? → **Path B: tag-only.** No merges. (Grav core's current 2.0.x stable is the exception — it's git-flow on `master`; see Grav core specifics.)
 
 ## Decide prerelease vs full release
 
@@ -97,9 +97,9 @@ Then create the GitHub release (Path A/B share this — see "Create the GitHub r
 
 ---
 
-## Path B — tag-only (work is on a release branch like `1.4.0` / `2.0`)
+## Path B — tag-only (work is on a release branch like `1.4.0` / `1.7`)
 
-These lines (e.g. flex-objects `1.4.0`, grav `2.0`) are **not** git-flow. The branch is the release line. The changelog + version are already committed and the branch is already pushed. You just tag the branch HEAD and publish — **no master/develop merges.**
+These lines (e.g. flex-objects `1.4.0`, an older Grav maintenance line like `1.7`) are **not** git-flow. The branch is the release line. The changelog + version are already committed and the branch is already pushed. You just tag the branch HEAD and publish — **no master/develop merges.**
 
 ```bash
 cd ~/Projects/grav/grav-plugin-<name>     # or the Grav core repo
@@ -121,7 +121,7 @@ Release notes come from the **top block of `CHANGELOG.md`** (the block for this 
 gh release create <version> \
   --repo <org>/grav-plugin-<name> \
   --title "<version>" \              # bare numeric — NO v
-  --target <branch> \               # master for Path A; the release branch (1.4.0 / 2.0) for Path B
+  --target <branch> \               # master for Path A (incl. Grav core 2.0.x); the release branch (1.4.0 / 1.7) for Path B
   [--prerelease] \                  # include per the prerelease decision above
   --notes "### New
 - ...
@@ -144,7 +144,9 @@ Confirm: `name` is bare numeric, `isDraft:false`, and `isPrerelease` matches the
 ## Grav core specifics
 
 - Version lives in `system/defines.php` as `GRAV_VERSION`, not `blueprints.yaml`.
-- Grav core uses a release-line branch (e.g. `2.0`) — **Path B (tag-only)**, not git-flow.
+- **The current stable line (2.0.x) ships git-flow on `master` — Path A**, exactly like a plugin (release branch off `develop` → merge `--no-ff` into `master` → tag there → back-merge the tag into `develop`). Confirm by checking how the previous tag was cut: `git log --oneline master..develop` shows the prior `Merge branch 'release/X'` / `Merge tag 'X' into develop` pair when it's git-flow.
+- **`2.0` is NOT the release branch** — it's the old beta/rc channel branch and now sits stale, well behind `develop`. Ignore it for 2.0.x stable releases; target `master`.
+- **Older maintenance lines release Path B (tag-only) from their own line branch.** "Release 1.7" means tag the HEAD of the `1.7` branch and publish with `--target 1.7` — no `master`/`develop` merges. The branch name matches the line (`1.7`, `1.6`, …).
 - Prerelease is decided by whether `GRAV_VERSION` is an rc/beta.
 - A plugin can depend on a specific core version (its `blueprints.yaml` `dependencies`/`grav:` constraint) — if a plugin RC needs an unreleased core RC, the core has to ship first or the dependency won't resolve in GPM.
 
