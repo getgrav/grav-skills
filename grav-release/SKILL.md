@@ -1,5 +1,6 @@
 ---
 name: grav-release
+description: >-
 description: Use when cutting a release of a Grav plugin (Team Grav / Trilby Media, e.g. `grav-plugin-*`) or Grav core itself. Covers the two release shapes — full git-flow when the work is on `develop`, and tag-only when the work is on a dedicated release branch (like flex-objects `1.4.0` or an older Grav maintenance line like `1.7`) — plus the prerelease decision (`testing: true` in blueprints, or an `-rc.`/`-beta.` version, or Grav core's `system/defines.php`), the bare-numeric tag/title rule (never `v`-prefixed), sourcing release notes from the top CHANGELOG block, and post-release verification. Trigger when the user says "release <plugin>", "cut a release", "tag and release", "get <plugin> out", "do a prerelease", or asks to run a git-flow release / `gh release` for a Grav plugin or Grav core.
 ---
 
