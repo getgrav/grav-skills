@@ -1,0 +1,14 @@
+{
+  "name": "grav-skills",
+  "description": "Claude Code skills for working on Grav CMS projects, focused on Grav 2.0 plugin development against the API and Admin Next architectures.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Team Grav",
+    "email": "devs@getgrav.org",
+    "url": "https://getgrav.org"
+  },
+  "homepage": "https://github.com/getgrav/grav-skills",
+  "repository": "https://github.com/getgrav/grav-skills",
+  "license": "Apache-2.0",
+  "keywords": ["grav", "grav-cms", "admin-next", "plugin-development", "php"]
+}
