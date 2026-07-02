@@ -1,0 +1,22 @@
+{
+  "name": "grav-skills",
+  "owner": {
+    "name": "Team Grav",
+    "email": "devs@getgrav.org"
+  },
+  "description": "Claude Code skills for building and maintaining Grav CMS plugins.",
+  "plugins": [
+    {
+      "name": "grav-skills",
+      "source": "./",
+      "description": "A bundle of skills that teach Claude how to work on Grav 2.0 plugins: API integration, Admin Next UI, translations, plugin review, and releases.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Team Grav",
+        "email": "devs@getgrav.org"
+      },
+      "homepage": "https://github.com/getgrav/grav-skills",
+      "keywords": ["grav", "grav-cms", "admin-next", "plugin-development", "php"]
+    }
+  ]
+}

@@ -24,18 +24,26 @@ Most plugin developers will want `grav-api-admin-next-integration`. Reach for th
 
 ## Install
 
-In **Claude Code**:
+In **Claude Code**, register this repository as a plugin marketplace, then install the `grav-skills` plugin from it:
 
 ```
 /plugin marketplace add getgrav/grav-skills
+/plugin install grav-skills@grav-skills
 ```
 
-That registers this repository as a skill marketplace. The skills inside become available immediately and Claude can invoke them when their triggers match (e.g. when you open a Grav plugin file, or ask for help with API/Admin Next integration). You can also explicitly invoke a skill via the `Skill` tool with the relevant skill name.
+Installing the plugin makes all of the skills available. Claude can invoke them when their triggers match (e.g. when you open a Grav plugin file, or ask for help with API/Admin Next integration). You can also explicitly invoke a skill via the `Skill` tool with the relevant skill name.
+
+To update after new skills or fixes are published:
+
+```
+/plugin marketplace update grav-skills
+```
 
 To remove:
 
 ```
-/plugin marketplace remove getgrav/grav-skills
+/plugin uninstall grav-skills@grav-skills
+/plugin marketplace remove grav-skills
 ```
 
 ## Usage

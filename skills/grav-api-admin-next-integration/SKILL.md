@@ -1570,6 +1570,27 @@ public function onPluginsInitialized(): void
 }
 ```
 
+**Same trap, different symptom — page templates/blueprints.** `Pages::getTypes()` fires `onGetPageTemplates` and `onGetPageBlueprints` to let plugins register page types for the **Add Page** dropdown (admin-next reads this via the API plugin's `GET /blueprints/pages`). A plugin that registers its template inside an `isAdmin()`-gated `enable()` block never subscribes on the API path, so its template is **silently absent from the dropdown** under admin-next — no error, it just isn't there. (If the active theme happens to ship a same-named `templates/<x>.html.twig`, `scanTemplates` picks that up and masks the bug, so don't trust one site's dropdown.) The handler is a context-free `$event->types->register(...)`, so subscribe to it statically:
+
+```php
+// ✅ CORRECT — register page templates unconditionally in getSubscribedEvents().
+public static function getSubscribedEvents()
+{
+    return [
+        'onPluginsInitialized' => ['onPluginsInitialized', 0],
+        'onTwigTemplatePaths'  => ['onTwigTemplatePaths', 0],
+        'onGetPageTemplates'   => ['onGetPageTemplates', 0],   // and/or onGetPageBlueprints
+    ];
+}
+
+public function onGetPageTemplates(Event $event): void
+{
+    $event->types->register('my-template');
+}
+```
+
+**Whether the gating actually breaks depends on a second registration path.** `Types::init()` also scans `blueprints://pages`, and a plugin that declares `public $features = ['blueprints' => N]` has its `blueprints/` dir folded into the `blueprints://` stream by core. So a plugin shipping `blueprints/pages/<type>.yaml` *plus* `features['blueprints']` registers its page type through `init()` regardless of the gated handler. Worked example: `grav-plugin-form` and `grav-plugin-flex-objects` both gate `onGetPageTemplates` behind `isAdmin()`, but only **form** broke — it has no `blueprints/pages/*.yaml`, so the feature path registers nothing and the dead handler was the only path. **flex-objects** ships `blueprints/pages/flex-objects.yaml`, so `init()` registers it anyway and the gated handler is merely redundant. The fix for form was to move the subscription into the static `getSubscribedEvents()` list. Lesson for review: a gated `onGetPageTemplates`/`onGetPageBlueprints` is only an *actual* bug when there is no `features['blueprints']` + page-blueprint backup; either way the gating is wrong and should be static.
+
 Notes:
 - `isAdmin()` is still reliable **inside a handler that runs during request dispatch** (by then the proxy is registered) and for genuinely admin-classic-only UI. The pitfall is specifically gating subscription at `onPluginsInitialized` time.
 - Note the Grav 2.0 event names: Flex fires the `*After*` variants (`onFlexObjectAfterSave` / `onFlexObjectAfterDelete`), not bare `onFlexObjectSave` / `onFlexObjectDelete`.
