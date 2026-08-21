@@ -154,7 +154,7 @@ Thanks for taking the time on this, and for the clear write-up.
 
 This one falls under our trust-boundary policy: [the actor here / a super-admin] already has [capability], so [doing X] is within the scope they were granted rather than an escape from it. We rate by whether an actor can escape their role's trust scope, not by what a given role is technically able to do — the reasoning is in our security policy:
 
-https://github.com/getgrav/grav/blob/develop/SECURITY.md#how-we-decide-what-is-a-vulnerability
+https://github.com/getgrav/grav/blob/develop/SECURITY.md#triangular_ruler-how-we-decide-what-is-a-vulnerability
 
 Closing on that basis. We do appreciate the report and hope you'll keep an eye on Grav.
 ```
@@ -166,7 +166,7 @@ Thanks for the report.
 
 `Security::detectXss()` is a heuristic denylist that flags suspicious content for human review. It is not a security boundary and it has never been complete — a denylist over an unbounded input space cannot be. Grav's actual XSS defense is escaping at output, so a payload that slips past the pattern list isn't a vulnerability on its own. This is now stated explicitly in our policy:
 
-https://github.com/getgrav/grav/blob/develop/SECURITY.md#what-we-do-not-publish-an-advisory-for
+https://github.com/getgrav/grav/blob/develop/SECURITY.md#no_entry-what-we-do-not-publish-an-advisory-for
 
 If you can show this payload rendering **unescaped at an output sink**, that's a genuine finding and we'd very much like to see it — please open a new report with the rendered sink included.
 ```
@@ -200,7 +200,7 @@ Thanks, this is a real improvement and we're taking the fix.
 
 We're not issuing an advisory for it: [the actor could already reach equivalent data through their granted role / there's no demonstrated practical exploit path], so there's nothing operators need to act on urgently. It'll ship in [VERSION] and you're credited in the CHANGELOG. Our policy on which issues get advisories vs. quiet fixes is here:
 
-https://github.com/getgrav/grav/blob/develop/SECURITY.md#what-we-do-not-publish-an-advisory-for
+https://github.com/getgrav/grav/blob/develop/SECURITY.md#no_entry-what-we-do-not-publish-an-advisory-for
 
 Appreciate the report.
 ```

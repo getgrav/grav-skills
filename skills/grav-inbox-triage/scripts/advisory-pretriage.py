@@ -34,6 +34,7 @@ import json
 import os
 import re
 import subprocess
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -164,6 +165,26 @@ NOISE_IDENTS = {
 }
 
 
+class GhError(RuntimeError):
+    """A gh invocation failed hard (missing binary, auth, or network)."""
+
+
+def preflight() -> None:
+    """Fail loudly before doing any work if gh is not usable.
+
+    Cron runs with a minimal PATH that lacks /opt/homebrew/bin, so gh is not
+    found and every advisory fetch silently returns nothing. Catch that here.
+    """
+    if shutil.which("gh") is None:
+        sys.exit(
+            "advisory-pretriage: `gh` is not on PATH. If this is cron, prepend "
+            "PATH=/opt/homebrew/bin:/usr/bin:/bin to the crontab line."
+        )
+    code, out = run(["gh", "auth", "status"], timeout=30)
+    if code != 0:
+        sys.exit(f"advisory-pretriage: `gh auth status` failed: {out.strip()[:200]}")
+
+
 def run(cmd: list[str], cwd: str | None = None, timeout: int = 60) -> tuple[int, str]:
     try:
         p = subprocess.run(
@@ -181,8 +202,10 @@ def fetch_advisories(repo: str, states: set[str]) -> list[dict]:
         "--paginate", "--slurp",
     ], timeout=120)
     if code != 0:
-        print(f"  ! {repo}: gh failed ({out.strip()[:120]})", file=sys.stderr)
-        return []
+        # A missing gh (cron has no /opt/homebrew/bin) or an auth/network failure
+        # must not masquerade as an empty queue — raise so the run aborts loudly
+        # instead of writing a misleading "0 advisories" digest.
+        raise GhError(f"{repo}: gh failed ({out.strip()[:160]})")
     try:
         pages = json.loads(out)
     except json.JSONDecodeError:
@@ -483,13 +506,18 @@ def main() -> int:
     outdir = Path(args.out).expanduser()
     outdir.mkdir(parents=True, exist_ok=True)
 
+    preflight()
+
     print(f"Fetching advisories in {sorted(states)} across {len(repos)} repos...", file=sys.stderr)
     advisories: list[dict] = []
-    for repo in repos:
-        found = fetch_advisories(repo, states)
-        if found:
-            print(f"  {repo}: {len(found)}", file=sys.stderr)
-        advisories.extend(found)
+    try:
+        for repo in repos:
+            found = fetch_advisories(repo, states)
+            if found:
+                print(f"  {repo}: {len(found)}", file=sys.stderr)
+            advisories.extend(found)
+    except GhError as exc:
+        sys.exit(f"advisory-pretriage: aborting without writing a digest — {exc}")
 
     if not advisories:
         print("Nothing in the queue.", file=sys.stderr)
