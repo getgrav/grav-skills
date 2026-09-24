@@ -259,7 +259,7 @@ Apply the per-advisory **"advisory changes" list** from the artifact to the GHSA
 gh api -X PATCH repos/getgrav/grav/security-advisories/<GHSA-ID> -f severity='medium'
 ```
 
-Version/affected metadata and publish are usually release-gated — set the affected range and patched version when the fix tag exists, and leave an assigned-but-unpublished advisory in the inbox as the live reminder rather than marking it done. **Then** mark the fully-handled notifications done:
+Version/affected metadata and publish are usually release-gated — set the affected range and patched version when the fix tag exists. **Advisories do not need to stay in the inbox.** Andy tracks them through the separate weekly advisory triage and the pre-triage digest, not through GitHub notifications, so an assigned-but-unpublished advisory can be marked done like anything else once it has been surfaced to him — he will pick it up from the advisory queue regardless. Never read an advisory's absence from the inbox as evidence it was resolved. **Then** mark the fully-handled notifications done:
 
 ```bash
 gh api -X PATCH notifications/threads/<thread-id>   # mark one thread read/done

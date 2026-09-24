@@ -58,6 +58,10 @@ Mark the GitHub release as `--prerelease` if **any** of:
 
 Otherwise it's a normal (latest) release — omit `--prerelease`.
 
+### Stable but NOT latest (backport / old-line security fix)
+
+A **full, stable** release can still need to stay off the `releases/latest` pointer — e.g. a security backport to an older maintenance line (`1.7.53.4` while `2.x` is current). This is **not** a prerelease (`GRAV_VERSION`/version is stable, not `-rc.`/`-beta.`), so don't use `--prerelease` — the notes wouldn't match and GPM's `?stable=1` feed would wrongly drop it. Instead pass **`--latest=false`** to `gh release create`, which publishes a normal, non-draft, stable release without moving `releases/latest`. GitHub also won't auto-promote it when a higher-semver tag (`2.2.0`) already exists, but `--latest=false` makes it explicit and safe regardless. Verify afterward with `gh api repos/getgrav/grav/releases/latest -q .tag_name` — it should still return the newest line's tag, not the backport.
+
 ## Commit rules
 
 Per Andy's global git rules: **never add `Co-Authored-By:` or any AI-assistant coauthor trailer.** Commits are solely his.
