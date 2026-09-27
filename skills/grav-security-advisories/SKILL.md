@@ -78,7 +78,7 @@ These are pre-decided. A match turns a 40-minute investigation into a 5-minute c
 **Check the digest's date first.** If `latest.md` is not from the last day or two, the cron is broken: look at `tail /tmp/grav-pretriage.log`, then just run the script by hand. Cron has no `/opt/homebrew/bin` in its PATH, so the crontab line must set it inline:
 
 ```
-47 3 * * * PATH=/opt/homebrew/bin:/usr/bin:/bin /Users/rhuk/Projects/grav/grav-skills/skills/grav-security-advisories/scripts/advisory-pretriage.py >> /tmp/grav-pretriage.log 2>&1
+47 3 * * * PATH=/opt/homebrew/bin:/usr/bin:/bin $HOME/Projects/grav/grav-skills/skills/grav-security-advisories/scripts/advisory-pretriage.py >> /tmp/grav-pretriage.log 2>&1
 ```
 
 Read the digest as evidence, not a verdict. A "likely fixed" verdict means a commit or comment cites the GHSA; confirm it with `git show` and `git tag --contains`. A `low` confidence family match usually came from a pattern quoted in the PoC; treat it as a hint. The re-home column is high value: `classes/Api/...` or `user/plugins/<name>/...` paths in an advisory filed on `getgrav/grav` mean the bug belongs to that plugin.
