@@ -53,6 +53,11 @@ DEFAULT_REPOS = [
     "grav-plugin-email",
 ]
 
+# Repos that live outside the getgrav org. Everything else is fetched from ORG.
+OWNERS = {
+    "grav-plugin-flex-objects": "trilbymedia",
+}
+
 # ---------------------------------------------------------------------------
 # Known bug-family register. Keep in sync with SKILL.md — that document is the
 # authority on what each disposition means; this is only the pattern matcher.
@@ -70,6 +75,20 @@ FAMILIES = [
         "patterns": [
             r"detectxss", r"detect_xss", r"xss_enabled", r"xss filter bypass",
             r"dangerous_tags", r"invalid_protocols", r"on_events",
+        ],
+    },
+    {
+        "id": "dangerous-function",
+        "label": "isDangerousFunction denylist bypass",
+        "default": "A (not a vulnerability)",
+        "note": (
+            "isDangerousFunction is a denylist of PHP function names, not a boundary; "
+            "the Twig content sandbox is. Only in scope if a string callable of any "
+            "kind executes inside SANDBOXED content."
+        ),
+        "patterns": [
+            r"isdangerousfunction", r"is_dangerous_function", r"dangerous function",
+            r"unsafe_functions", r"safe_functions",
         ],
     },
     {
@@ -198,7 +217,7 @@ def run(cmd: list[str], cwd: str | None = None, timeout: int = 60) -> tuple[int,
 def fetch_advisories(repo: str, states: set[str]) -> list[dict]:
     """List advisories for one repo, filtered to the states we care about."""
     code, out = run([
-        "gh", "api", f"/repos/{ORG}/{repo}/security-advisories",
+        "gh", "api", f"/repos/{OWNERS.get(repo, ORG)}/{repo}/security-advisories",
         "--paginate", "--slurp",
     ], timeout=120)
     if code != 0:
@@ -397,7 +416,7 @@ def render(rows: list[dict], states: set[str]) -> str:
     out.append("")
     out.append(
         "> Mechanical evidence only. Dispositions and reply text are decided in the "
-        "weekly review using the `grav-inbox-triage` skill — nothing below is a "
+        "weekly review using the `grav-security-advisories` skill — nothing below is a "
         "recommendation, and the family column is a *candidate* match to confirm, "
         "not a verdict."
     )
@@ -481,7 +500,7 @@ def render(rows: list[dict], states: set[str]) -> str:
     out.append("---")
     out.append("")
     out.append(
-        "Next: run the `grav-inbox-triage` skill against this digest to assign "
+        "Next: run the `grav-security-advisories` skill against this digest to assign "
         "dispositions (A / B / C) and draft the closes."
     )
     out.append("")
