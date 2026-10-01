@@ -698,6 +698,7 @@ customElements.define(TAG, MyFieldType);
 - Read-only display fields don't need to dispatch events
 - API globals: `__GRAV_API_SERVER_URL`, `__GRAV_API_PREFIX`, `__GRAV_API_TOKEN`
 - Dialog global: `__GRAV_DIALOGS` (see "UI Dialogs" below) — **never** call native `confirm()`/`alert()`/`prompt()`
+- Help text under a label goes in `<grav-help>`, not a hint paragraph (see "Help text: `<grav-help>`" below)
 
 ### UI Dialogs — Never Use Native `confirm()`/`alert()`/`prompt()`
 
@@ -1406,6 +1407,31 @@ var(--primary)             /* primary/accent color */
 var(--accent)              /* hover/active background */
 var(--popover)             /* popover/dropdown background */
 ```
+
+### Help text: `<grav-help>` (follows the user's Help text setting)
+
+Each user (and the site default) chooses in Settings whether field help shows **below the label** or **in a tooltip** behind a small info icon. Blueprint fields follow it automatically. Anything a plugin draws itself must use `<grav-help>` for its help text, or it ignores the setting and leaves that plugin's forms cluttered for the people who chose tooltips. The admin registers the element at boot, globally, so it works in light DOM and inside any plugin shadow root, and it follows a mode change live.
+
+```html
+<!-- Inside the label -->
+<label>Store name <grav-help>Shown on receipts. <a href="/docs/x">More</a></grav-help></label>
+
+<!-- Or straight after it -->
+<label for="cur">Currency</label>
+<grav-help>The currency prices are shown in.</grav-help>
+```
+
+Rules:
+
+- **Swap, don't add.** Replace the `<p class="hint">…</p>` (or `.help`, `.meta`, `<small>`) that sits under a label with `<grav-help>…</grav-help>`, and delete the CSS that styled the old hint. Do not keep both.
+- The content is your own light-DOM markup, so links, `<code>` and `<strong>` work. Keep it to a sentence or two. A warning, unit or required format someone must see to use the field belongs in the label or a visible note, not in help, because tooltip users only see help on hover.
+- The icon's accessible name ("Help for Store name") comes from the `<label>` it is inside or follows. Set `label="Store name"` when there is no `<label>` (a heading, a table cell, a custom control).
+- In tooltip mode the icon flows inline with the text around it. A label styled as a grid or flex container makes it one more item in that layout, so wrap the label text in a `<span>` or put `<grav-help>` after the label.
+- Clicks on the icon and on text in the tooltip never focus or toggle a field it sits inside; links in the help still work.
+- Older admins do not define the element, so the browser shows the children as plain inline text. That is acceptable. To give them the paragraph look, use `grav-help:not(:defined) { display: block; font-size: .75rem; opacity: .7 }`, never a plain `grav-help { display: … }` rule, which would override the real element's layout.
+- A plugin that draws help its own way can read `document.documentElement.dataset.helpMode` (`inline` or `tooltip`; treat missing as `inline`) and listen for `grav:help-mode` on `document` (`e.detail.mode`).
+
+Full reference: `grav-admin-next/docs/help-element.md`.
 
 ### Shadow DOM vs Light DOM
 - **Shadow DOM** (`attachShadow({ mode: 'open' })`): Use for complex widgets/pages where style isolation matters. Requires all CSS inline or in `<style>` tags.

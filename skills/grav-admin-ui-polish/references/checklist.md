@@ -89,6 +89,7 @@ Walk it in this order. Each item is a thing to look for, not a thing to assume. 
 - [ ] Any explanation over two lines that the reader will see on every visit?
 - [ ] Any blueprint help over ~160 characters? (`grep -n '_HELP' languages/en.yaml | awk 'length > 200'`)
 - [ ] Any CLI command in merchant-facing help?
+- [ ] Is every hint paragraph under a label a `<grav-help>`, so it follows the user's Help text setting? (`grep -nE 'class="(hint|help)"'`, then check each hit sits under a label)
 - [ ] Any sentence that documents an inconsistency instead of fixing it? ("Uploading takes effect straight away, not on Save.")
 
 ## 10. Host fit (code-side pass)
