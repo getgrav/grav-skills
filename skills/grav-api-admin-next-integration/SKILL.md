@@ -694,6 +694,8 @@ customElements.define(TAG, MyFieldType);
 - Tag name is auto-assigned via `window.__GRAV_FIELD_TAG` — always use it
 - Property `field` receives the full blueprint field definition object
 - Property `value` receives the current saved value and must be gettable
+- Property `getValue(path)` reads any other value in the form by its blueprint path (the same accessor built-in container fields get). Inside a list row it is scoped to that row, so a sibling is `getValue(<list name>.<sibling>)`; from the field's own name, swap the last segment (`this._field.name.replace(/[^.]+$/, 'plugin')`). It is a live accessor: call it when you need the value, never cache the result. It is set before the element connects, but a field used in a context with no form data (older admin builds) may not have it, so guard with `this.getValue?.(...)`
+- To re-render when a sibling changes, expose a `watch` array (paths; a bare name like `'plugin'` means the sibling with that name) and a `formChanged()` method. Admin Next calls `formChanged()` after a watched value changes, never on first load and never for unwatched changes. Fields that don't define both are never called
 - Dispatch `new CustomEvent('change', { detail: newValue, bubbles: true })` when value changes
 - Read-only display fields don't need to dispatch events
 - API globals: `__GRAV_API_SERVER_URL`, `__GRAV_API_PREFIX`, `__GRAV_API_TOKEN`
