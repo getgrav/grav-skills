@@ -598,6 +598,27 @@ For non-blocking feedback use `window.__GRAV_TOAST.{success,error,info,warning}(
 
 **Never** use native `confirm()`/`alert()`/`prompt()` in component-mode pages — use `window.__GRAV_DIALOGS.confirm()` instead. See Section F → "UI Dialogs" for the API.
 
+#### Several views on one page: sub-routes (admin2 2.1.34+)
+
+`/plugin/{slug}/anything/below` renders the same page as `/plugin/{slug}` (the route is `src/routes/plugin/[slug]/[...path]`). For a plugin with several views, give each view its own sidebar item with a **path** route, not `?view=`. Sidebar matching is by whole path segment, so `/plugin/my-plugin/orders` is active on `/plugin/my-plugin/orders/42` but not on `/plugin/my-plugin/customers`. (A `?view=` link is active only while the current URL carries the same query values, so that still works, but paths give cleaner deep links.)
+
+```php
+['id' => 'my-plugin-orders',    'plugin' => 'my-plugin', 'label' => 'Orders',    'icon' => 'fa-receipt', 'route' => '/plugin/my-plugin/orders'],
+['id' => 'my-plugin-customers', 'plugin' => 'my-plugin', 'label' => 'Customers', 'icon' => 'fa-users',   'route' => '/plugin/my-plugin/customers'],
+```
+
+- The page element gets the part after `/plugin/{slug}/` as a `path` attribute **and** property (`orders`, `orders/42`, `''` on the root).
+- Moving between views of the same plugin keeps the element mounted: admin-next updates `path` and dispatches `route-change` on the element, `detail = { path, search }`. It fires for query-string-only changes too, so never poll `location`.
+- Navigate between views with `window.__GRAV_NAVIGATE(window.__GRAV_ADMIN_BASE + '/plugin/my-plugin/customers')`.
+- The page definition (`onApiPluginPageInfo`) is fetched once per plugin, not per view, so the title and toolbar actions are shared by every view.
+
+```js
+connectedCallback() {
+    this._show(this.getAttribute('path') || 'orders');
+    this.addEventListener('route-change', (e) => this._show(e.detail.path || 'orders'));
+}
+```
+
 ### Filesystem Discovery (alternative to event)
 Place files directly without implementing the event:
 - `admin-next/pages/my-plugin.yaml` — blueprint definition (blueprint mode)
