@@ -715,7 +715,7 @@ customElements.define(TAG, MyFieldType);
 - Tag name is auto-assigned via `window.__GRAV_FIELD_TAG` — always use it
 - Property `field` receives the full blueprint field definition object
 - Property `value` receives the current saved value and must be gettable
-- Property `getValue(path)` reads any other value in the form by its blueprint path (the same accessor built-in container fields get). Inside a list row it is scoped to that row, so a sibling is `getValue(<list name>.<sibling>)`; from the field's own name, swap the last segment (`this._field.name.replace(/[^.]+$/, 'plugin')`). It is a live accessor: call it when you need the value, never cache the result. It is set before the element connects, but a field used in a context with no form data (older admin builds) may not have it, so guard with `this.getValue?.(...)`
+- Property `getValue(path)` reads any other value in the form by its blueprint path (the same accessor built-in container fields get). Inside a list row it is scoped to that row, so a sibling is `getValue(<list name>.<sibling>)`; from the field's own name, swap the last segment (`this._field.name.replace(/[^.]+$/, 'plugin')`). A path the row doesn't hold falls through to the enclosing row and then the whole form, so a field in a nested list reads its parent row with the parent's path (`getValue('protected_fields.plugin')` from inside `protected_fields.fields`), and `watch` takes the same paths. It is a live accessor: call it when you need the value, never cache the result. It is set before the element connects, but a field used in a context with no form data (older admin builds) may not have it, so guard with `this.getValue?.(...)`
 - To re-render when a sibling changes, expose a `watch` array (paths; a bare name like `'plugin'` means the sibling with that name) and a `formChanged()` method. Admin Next calls `formChanged()` after a watched value changes, never on first load and never for unwatched changes. Fields that don't define both are never called
 - Dispatch `new CustomEvent('change', { detail: newValue, bubbles: true })` when value changes
 - Read-only display fields don't need to dispatch events
@@ -1433,7 +1433,7 @@ var(--popover)             /* popover/dropdown background */
 
 ### Help text: `<grav-help>` (follows the user's Help text setting)
 
-Each user (and the site default) chooses in Settings whether field help shows **below the label** or **in a tooltip** behind a small info icon. Blueprint fields follow it automatically. Anything a plugin draws itself must use `<grav-help>` for its help text, or it ignores the setting and leaves that plugin's forms cluttered for the people who chose tooltips. The admin registers the element at boot, globally, so it works in light DOM and inside any plugin shadow root, and it follows a mode change live.
+Each user (and the site default) chooses in Settings whether field help shows **in a tooltip** behind a small info icon (the default) or **below the label**. Blueprint fields follow it automatically. Anything a plugin draws itself must use `<grav-help>` for its help text, or it ignores the setting and leaves that plugin's forms cluttered for the people who chose tooltips. The admin registers the element at boot, globally, so it works in light DOM and inside any plugin shadow root, and it follows a mode change live.
 
 ```html
 <!-- Inside the label -->
@@ -1452,7 +1452,7 @@ Rules:
 - In tooltip mode the icon flows inline with the text around it. A label styled as a grid or flex container makes it one more item in that layout, so wrap the label text in a `<span>` or put `<grav-help>` after the label.
 - Clicks on the icon and on text in the tooltip never focus or toggle a field it sits inside; links in the help still work.
 - Older admins do not define the element, so the browser shows the children as plain inline text. That is acceptable. To give them the paragraph look, use `grav-help:not(:defined) { display: block; font-size: .75rem; opacity: .7 }`, never a plain `grav-help { display: … }` rule, which would override the real element's layout.
-- A plugin that draws help its own way can read `document.documentElement.dataset.helpMode` (`inline` or `tooltip`; treat missing as `inline`) and listen for `grav:help-mode` on `document` (`e.detail.mode`).
+- A plugin that draws help its own way can read `document.documentElement.dataset.helpMode` (`inline` or `tooltip`; treat missing as `tooltip`, the default) and listen for `grav:help-mode` on `document` (`e.detail.mode`).
 
 Full reference: `grav-admin-next/docs/help-element.md`.
 
