@@ -120,6 +120,7 @@ Spot-check every "already fixed" and every negative finding yourself before it g
 - **Push B and C fixes** to `develop` (and `1.7`) once tests pass, after checking `git log origin/develop..develop` holds only your commits. If Andy has unpushed local work on the branch, don't push; list it in Needs Andy.
 - **Hold a Critical (unauthenticated) fix locally and put it in Needs Andy.** Pushing it starts the clock before a release exists, and release timing is Andy's call.
 - Never tag or release. List what is ready to ship.
+- **Issues found during validation with no reporter** (a sibling or a worse path the agent turned up) get fixed on `develop` with no advisory, whatever their severity. Give each one its own `[security]` CHANGELOG bullet with no credit, separate from any reporter's bullet, so it is on record in the release notes.
 
 ### 5. Apply the advisory metadata (C only)
 
@@ -254,12 +255,16 @@ This code lives in [PLUGIN] rather than Grav core, so we've pointed the advisory
 
 ## The review artifact
 
+**Always publish one, every batch.** Its main job is copy and paste: advisory comments have no API, so Andy posts every reply by hand, and the artifact is where he does it. Each reply sits in its own copy block with a working Copy button, next to a link to the advisory it goes on. Never hand replies over as scratch-file paths or a wall of chat text instead; the scratchpad is wiped at midnight and chat mangles them. If the full review is not ready, publish the replies first and add the rest after.
+
+Keep it lean. The fixes, metadata and descriptions already live on GitHub, so the cards carry decisions and links, not write-ups: one line of mechanism, no PoC payloads or step-by-step exploit detail. The artifact is for reading and pasting, not a second copy of the advisory.
+
 One artifact per batch, published as an HTML Artifact, updated in place as things change. Andy acts straight off it, so republish **before** reporting a change in chat, and never leave a superseded recommendation in it.
 
 - **Top:** date, the disposition tally and published rate ("9 advisories: 5 A, 3 B, 1 C = 11% published"), Needs Andy, then one line per advisory: linked GHSA id, disposition, rubric severity (and the reporter's, if different), owning package, status (reply ready / fix pushed / metadata applied / waiting on tag).
 - **Cards grouped A, then B, then C.** A cards are three lines: family or SECURITY.md bullet, one-line why, the reply in a copy block. Andy approves the A block in one pass; that's where the time saving comes from.
 - **B cards:** why it's B, the commit(s) pushed, the CHANGELOG line, the reply.
-- **C cards:** the boundary sentence, already-fixed verdict, commits, and an "applied to the advisory" list (title, description, severity + CVSS, CWE, package, affected and patched ranges, credits), each marked applied with the value. Show the applied title and description in copy blocks so he can read what went live. Then the reply.
+- **C cards:** the boundary sentence, already-fixed verdict, commits, and an "applied to the advisory" list (title, severity, CWE, package, affected and patched ranges, credits), each marked applied with the value. Link the advisory for the description rather than repeating it. Then the reply.
 - **Every GHSA id, commit and PR is a link.** Every reply is in its own copy block, verbatim. If a reply contains a table, fence the whole thing.
 - Flag `reason: comment` advisories as "unread thread, check the UI first".
 
