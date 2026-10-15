@@ -41,7 +41,44 @@ Checklist before proceeding:
 - **`blueprints.yaml` `version:` == top `CHANGELOG.md` heading.** They should already agree. If they don't, stop and ask — don't guess which is right.
 - **CHANGELOG date is today.** The `## MM/DD/YYYY` line under the top heading should be today's date, not whenever the block was first drafted. Fix it if stale.
 - **Tag does not already exist.**
+- **Plugin is self-contained — run the checker, it must print `OK`.** GPM runs no `composer install`; the zip is the install. `php ~/.claude/skills/grav-release/scripts/check-vendor.php . HEAD` (after the release commit; before it, `git add -A` and pass `$(git write-tree)` as the ref). It archives the ref and fails on: a locked non-dev package not shipped, any `require-dev` package committed, `installed.php` `'dev' => true`, an autoloader entry pointing at missing library code, or `vendor/autoload.php` required but not shipped. Fixes: rebuild with `composer install --no-dev`; a build-time dependency that another required plugin ships at runtime and `replace` can't cover (kahunacart-newsletters' db-kit, which Strauss must see to rename into KahunaCart's copy) goes in composer.json `"extra": {"grav-release": {"provided-by": {"getgrav/grav-db-kit": "kahunacart"}}}`, and the checker accepts it only when blueprints.yaml lists that plugin under `dependencies`; anything Grav core (or a required plugin) provides goes in composer `"replace": {"psr/log": "*"}`, never Strauss exclusions or `suggest` (exception: a dependency that needs a different major than core ships, like grav-plugin-github's psr/log 1.x); Andy's global `~/.gitignore` ignores `log/`, so a bundled `.../log/` dir needs a negation in the repo's `.gitignore`. Never tag a plugin that fails this check.
+- **No development files in the zip — the same checker enforces it.** It fails when the archive carries `tests/` or `test/`, `phpunit.xml(.dist)`, a PHPUnit cache or `.github/`, and warns on paths that are usually development-only but that some plugins read at run time. The fix is the repo's `.gitattributes` (see "Keep development files out of the zip" below), added **in this release's commit**, so every plugin gets fixed on its next release rather than in a sweep of commits nobody tags.
+- **The suite passes on the commit you tag.** Check that CI is green for develop's HEAD (`gh run list --limit 1`), or run the repo's whole suite locally, one suite at a time across all sessions. Run it again after the version bump when nothing else changed. A bump alone can trip a test that reads `blueprints.yaml`, as in KahunaCart 1.3.9, where a test wanted every paywall template stamped with the current version. A handful of filtered tests is not enough.
 - **Never invent a version.** The version is whatever blueprints/changelog already say (typically last tag + 1). Don't bump it yourself per the changelog rules.
+
+## Keep development files out of the zip
+
+GPM installs the archive of the tag (GitHub's zipball, which is `git archive`), so whatever the archive exports is what every site downloads. A no-dev `vendor/` keeps PHPUnit out, but the plugin's own `tests/`, `phpunit.xml`, `.github/` and the like still ship unless the repo says otherwise. A CI job that runs `composer install --no-dev` doesn't help: nothing a workflow builds reaches GPM.
+
+The fix is a `.gitattributes` at the repo root. Every plugin gets the standard block:
+
+```
+# Development files stay out of the release zip (GPM installs git archive of the tag)
+/tests                 export-ignore
+/test                  export-ignore
+/phpunit.xml           export-ignore
+/phpunit.xml.dist      export-ignore
+/.phpunit.cache        export-ignore
+/.phpunit.result.cache export-ignore
+/.github               export-ignore
+/.gitignore            export-ignore
+/.gitattributes        export-ignore
+```
+
+Then look at whatever the checker still warns about and add a line for each path the plugin **never reads at run time**. These are decided per repo, never by default:
+
+- `/docs`, `/tools`, `/bin`: usually generator scripts and developer docs, but check first (grep the plugin's PHP, CLI and templates for the path; some plugins serve docs or feed them to MCP/llms output).
+- `/package.json`, `/package-lock.json`, and source folders that are built into shipped assets (`/desk-src`, `/admin-src`, …): export-ignore them when the built output is committed.
+- `/node_modules`: keep it when the plugin loads from it (grav-plugin-presentation loads reveal.js, axios and js-base64 from there).
+- Anything the plugin reads at run time stays, whatever its name: mailroom's `host/` recipes and `seed/`, KahunaCart's `classes/Testing` harness and scaffold templates under `classes/`.
+- Repo-specific extras such as core's `/crowdin.yml`.
+
+Rules:
+
+1. **Add it in the release commit, before the tag.** `export-ignore` only affects archives made after the commit, so a tag cut before it still ships everything. On Path A the `.gitattributes` goes into the `release/X.Y.Z` commit with the version bump; on Path B it has to be committed and pushed on the line branch first.
+2. **Don't sweep.** A repo without the file gets it on its own next release, not in a batch of commits that would sit untagged (DryDock flags every repo with commits after its last tag).
+3. **Tests still run from a clone.** `export-ignore` only affects archives; the files stay in the repo.
+4. **Re-run the checker** after adding it. It must print `OK`, and every remaining `WARN` about development paths should be something the plugin really reads.
 
 ## Decide the shape
 
