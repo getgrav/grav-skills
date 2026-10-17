@@ -719,7 +719,8 @@ customElements.define(TAG, MyFieldType);
 - To re-render when a sibling changes, expose a `watch` array (paths; a bare name like `'plugin'` means the sibling with that name) and a `formChanged()` method. Admin Next calls `formChanged()` after a watched value changes, never on first load and never for unwatched changes. Fields that don't define both are never called
 - Dispatch `new CustomEvent('change', { detail: newValue, bubbles: true })` when value changes
 - Read-only display fields don't need to dispatch events
-- API globals: `__GRAV_API_SERVER_URL`, `__GRAV_API_PREFIX`, `__GRAV_API_TOKEN`
+- API calls: use `window.__GRAV_API.{get(path, params), post, patch, put, delete(path, body)}` (Admin2 2.1.35+). Paths are relative to the API prefix, it resolves `data` and rejects with `status` + `message`, and it handles token refresh, environment headers, the PATCH/PUT/DELETE override retry and `X-Invalidates`. An endpoint that changes the record a field sits on should answer with `respondWithInvalidation($data, ['flex-objects:'.$type.':update:'.$key])` (or `pages:update:<route>`, `config:update:<scope>`, `plugins:update:<slug>`, `users:update:<username>`): the edit screen then refills in place, or shows "changed elsewhere" if it has unsaved edits. Never `window.location.reload()` after such a call. A plain `fetch()` never sees `X-Invalidates`, and `__GRAV_API_TOKEN` goes stale after an hour
+- Raw API globals (for downloads/streams only): `__GRAV_API_SERVER_URL`, `__GRAV_API_PREFIX`, `__GRAV_API_TOKEN`
 - Dialog global: `__GRAV_DIALOGS` (see "UI Dialogs" below) — **never** call native `confirm()`/`alert()`/`prompt()`
 - Help text under a label goes in `<grav-help>`, not a hint paragraph (see "Help text: `<grav-help>`" below)
 
