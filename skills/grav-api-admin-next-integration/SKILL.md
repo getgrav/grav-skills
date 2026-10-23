@@ -187,10 +187,17 @@ public function onApiSidebarItems(Event $event): void
         // 'badge'         => '3',          // optional STATIC badge text/count
         // 'badgeEndpoint' => '/my-plugin/badge', // optional DYNAMIC badge: returns { count: N }
         // 'authorize'     => 'api.system.read',  // optional perm gate (string or any-of array), stripped before reaching client
+        // 'children'      => [                    // optional shortcuts a user can switch on under the item
+        //     ['id' => 'orders', 'label' => 'Orders', 'route' => '/plugin/my-plugin#/orders', 'authorize' => '…'],
+        // ],
     ];
     $event['items'] = $items;
 }
 ```
+
+### Sub-item shortcuts (`children`)
+
+An item can offer `children`: screens of the plugin a user may want one click away. They are offered, never shown by default: each user switches on the ones they want under the item when they customize the sidebar (the pencil at the bottom of the sidebar), and a super admin can save that arrangement as the site's default. A child needs an `id` (letters, digits, `_` and `-`, unique within the item), a `label` (a translation key works, as on the item) and a `route`, which may carry a `#` part for a component page's own screens (`/plugin/my-plugin#/orders`). `icon` and `authorize` are optional and work as on the item. Users also reorder and hide whole items in the same edit mode, so keep an item's `id` stable: a saved sidebar refers to it as `plugin:<id>`, and to a child as `plugin:<id>/<child id>`.
 
 ### Dynamic sidebar badges
 
