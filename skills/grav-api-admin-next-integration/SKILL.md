@@ -1371,6 +1371,37 @@ class MyInsertModal extends HTMLElement {
 customElements.define(TAG, MyInsertModal);
 ```
 
+**What the modal is told (admin2 2.2.18+).** Opening the modal takes focus off
+the editor, so admin-next captures the selection when the button is clicked and
+sets an `editorContext` property on the element (next to any `modal.props`
+from the PHP side, before it connects):
+
+```javascript
+this.editorContext
+// { selectedText: 'contact us', from: 120, to: 130, contentLanguage: 'fr' }
+// selectedText is '' for a plain cursor; contentLanguage is '' when unknown.
+```
+
+The resolved `insertContent` **replaces that captured selection** (falling back
+to the current cursor if the document changed under it while the modal was
+open), so a link or wrap modal can use `selectedText` as its label without
+reading the editor itself. Never reach into `.cm-editor` or `document.activeElement`
+for this. To leave something selected after inserting, add `select` with offsets
+into `insertContent` (`to` defaults to `from`; without it the cursor goes after
+the inserted text):
+
+```javascript
+const label = this.editorContext?.selectedText || 'link text';
+const md = `[${label}](/contact)`;
+this.dispatchEvent(new CustomEvent('resolve', {
+    detail: { insertContent: md, select: { from: 1, to: 1 + label.length } },
+}));
+```
+
+Insert bare page routes (`/contact`): Grav adds the language prefix and the
+site's base path to root-relative markdown links when it renders, so adding
+them yourself doubles them.
+
 Render the form immediately (with safe defaults) and re-render after any config
 fetch resolves, rather than showing a loading placeholder — the modal animates
 in, so a placeholder reads as a broken empty modal during the entrance.
